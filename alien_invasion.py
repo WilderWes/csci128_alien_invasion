@@ -1,3 +1,15 @@
+"""
+CSCI 128 Alien Invasion Revamped
+Author: Weston Preising
+Description:
+1) The game was forked from https://github.com/ehmatthes/pcc_3e/tree/354813808eb999c0bcf7939904af582110f80aa7/solution_files/chapter_14/ex_14_5_high_score
+
+Textbook Resources:
+1) Matthes, E. (2023). Python crash course: A hands-on, project-based introduction to programming. No Starch Press®.
+
+Online Resources:
+"""
+
 import sys
 from time import sleep
 import json
