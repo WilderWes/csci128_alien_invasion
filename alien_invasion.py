@@ -225,10 +225,11 @@ class AlienInvasion:
         # only aliens in top part so they don't spawn on top of ship
         max_x = self.settings.screen_width - alien_w
         max_y = self.settings.middle_y - alien_h
+        max = [max_x, max_y]
 
         for n in range(random.randint(5, 15)):
-            x_pos = random.randint(0, max_x)
-            y_pos = random.randint(0, max_y)
+            x_pos = random.randint(0, max[0])
+            y_pos = random.randint(0, max[1])
             self._create_alien(x_pos, y_pos)
 
 
