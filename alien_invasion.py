@@ -1,29 +1,53 @@
 """
 CSCI 128 Alien Invasion Revamped
 Author: Weston Preising
+
+Instructions:
+1) pip install -r requirements.txt
+2) python alien_invasion.py
+
 Description:
-1) The game was forked from https://github.com/ehmatthes/pcc_3e/tree/354813808eb999c0bcf7939904af582110f80aa7/solution_files/chapter_14/ex_14_5_high_score
+The game was forked from https://github.com/ehmatthes/pcc_3e/tree/354813808eb999c0bcf7939904af582110f80aa7/solution_files/chapter_14/ex_14_5_high_score
+I've added new modules, classes, functions and game logic to it.
+You'll need pygame to run it
+
+Changes made:
+1) Added Use of WASD keys for left and right movement
+2) Added y axis logic so the ship could go up and down; refactored arrow key / WASD for dual functionality
+3) Changed to One Life Only
+4) Added Gameover class to display gameover when game ends
+5) added text_image_drawer helper function to be used for button and gameover classes
+6) Add random alien fleet spawning logic
+7) added halfway line to ensure ships and aliens don't spawn on each other
 
 Textbook Resources:
 1) Matthes, E. (2023). Python crash course: A hands-on, project-based introduction to programming. No Starch Press®.
 
 Online Resources:
+1) pygame key ref (https://www.pygame.org/docs/ref/key.html)
+2) RGB Converter (https://www.w3schools.com/colors/colors_converter.asp)
+3) RGB Dark red (https://www.rapidtables.com/web/color/red-color.html)
+4) draw line (https://www.pygame.org/docs/ref/draw.html)
+5) random numbers (https://docs.python.org/3/library/random.html)
+6) pygame display (https://www.pygame.org/docs/ref/display.html)
 """
 
 import sys
 from time import sleep
 import json
 from pathlib import Path
-
+import random
 import pygame
 
 from settings import Settings
 from game_stats import GameStats
 from scoreboard import Scoreboard
 from button import Button
+from gameover import Gameover
 from ship import Ship
 from bullet import Bullet
 from alien import Alien
+from helpers import draw_text_image
 
 
 class AlienInvasion:
@@ -55,6 +79,8 @@ class AlienInvasion:
 
         # Start game in an inactive state.
         self.game_active = False
+        self.game_over = False
+        self.game_over_window = Gameover(self)
 
     def run_game(self):
         """Start the main loop for the game."""
@@ -96,6 +122,7 @@ class AlienInvasion:
         # Reset the game statistics.
         self.stats.reset_stats()
         self.game_active = True
+        self.game_over = False
         self.sb.prep_score()
         self.sb.prep_level()
         self.sb.prep_ships()
@@ -113,23 +140,31 @@ class AlienInvasion:
 
     def _check_keydown_events(self, event):
         """Respond to keypresses."""
-        if event.key == pygame.K_RIGHT:
+        if event.key == pygame.K_RIGHT or event.key == pygame.K_d:
             self.ship.moving_right = True
-        elif event.key == pygame.K_LEFT:
+        elif event.key == pygame.K_LEFT or event.key == pygame.K_a:
             self.ship.moving_left = True
+        elif event.key == pygame.K_UP or event.key == pygame.K_w:
+            self.ship.moving_up = True
+        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+            self.ship.moving_down = True
         elif event.key == pygame.K_q:
             self._close_game()
-        elif event.key == pygame.K_SPACE:
-            self._fire_bullet()
+        elif event.key == pygame.K_SPACE and self.game_active:
+                self._fire_bullet()
         elif event.key == pygame.K_p and not self.game_active:
             self._start_game()
 
     def _check_keyup_events(self, event):
         """Respond to key releases."""
-        if event.key == pygame.K_RIGHT:
+        if event.key == pygame.K_RIGHT or event.key == pygame.K_d:
             self.ship.moving_right = False
-        elif event.key == pygame.K_LEFT:
+        elif event.key == pygame.K_LEFT or event.key == pygame.K_a:
             self.ship.moving_left = False
+        elif event.key == pygame.K_UP or event.key == pygame.K_w:
+            self.ship.moving_up = False
+        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+            self.ship.moving_down = False
 
     def _fire_bullet(self):
         """Create a new bullet and add it to the bullets group."""
@@ -197,11 +232,10 @@ class AlienInvasion:
 
     def _ship_hit(self):
         """Respond to the ship being hit by an alien."""
+        self.stats.ships_left -= 1
+        self.sb.prep_ships()
+
         if self.stats.ships_left > 0:
-            # Decrement ships_left, and update scoreboard.
-            self.stats.ships_left -= 1
-            self.sb.prep_ships()
-            
             # Get rid of any remaining aliens and bullets.
             self.aliens.empty()
             self.bullets.empty()
@@ -214,35 +248,30 @@ class AlienInvasion:
             sleep(0.5)
         else:
             self.game_active = False
+            self.game_over = True
             pygame.mouse.set_visible(True)
 
     def _create_fleet(self):
         """Create the fleet of aliens."""
-        # Create an alien and find the number of aliens in a row.
-        # Spacing between each alien is equal to one alien width.
         alien = Alien(self)
-        alien_width, alien_height = alien.rect.size
-        available_space_x = self.settings.screen_width - (2 * alien_width)
-        number_aliens_x = available_space_x // (2 * alien_width)
-        
-        # Determine the number of rows of aliens that fit on the screen.
-        ship_height = self.ship.rect.height
-        available_space_y = (self.settings.screen_height -
-                                (3 * alien_height) - ship_height)
-        number_rows = available_space_y // (2 * alien_height)
-        
-        # Create the full fleet of aliens.
-        for row_number in range(number_rows):
-            for alien_number in range(number_aliens_x):
-                self._create_alien(alien_number, row_number)
+        alien_w, alien_h = alien.rect.size
 
-    def _create_alien(self, alien_number, row_number):
+        # only aliens in top part so they don't spawn on top of ship
+        max_x = self.settings.screen_width - alien_w
+        max_y = self.settings.middle_y - alien_h
+
+        for n in range(random.randint(5, 15)):
+            x_pos = random.randint(0, max_x)
+            y_pos = random.randint(0, max_y)
+            self._create_alien(x_pos, y_pos)
+
+
+    def _create_alien(self, x_pos, y_pos):
         """Create an alien and place it in the row."""
         alien = Alien(self)
-        alien_width, alien_height = alien.rect.size
-        alien.x = alien_width + 2 * alien_width * alien_number
-        alien.rect.x = alien.x
-        alien.rect.y = alien.rect.height + 2 * alien.rect.height * row_number
+        alien.rect.x = x_pos
+        alien.rect.y = y_pos
+        alien.x = float(alien.rect.x)
         self.aliens.add(alien)
 
     def _check_fleet_edges(self):
@@ -261,17 +290,23 @@ class AlienInvasion:
     def _update_screen(self):
         """Update images on the screen, and flip to the new screen."""
         self.screen.fill(self.settings.bg_color)
-        self.ship.blitme()
-        for bullet in self.bullets.sprites():
-            bullet.draw_bullet()
-        self.aliens.draw(self.screen)
+        if self.game_active:
+            self.ship.blitme()
+            for bullet in self.bullets.sprites():
+                bullet.draw_bullet()
+            self.aliens.draw(self.screen)
 
         # Draw the score information.
         self.sb.show_score()
 
         # Draw the play button if the game is inactive.
         if not self.game_active:
-            self.play_button.draw_button()
+            if self.game_over:
+                self.game_over_window.draw_window()
+            else: 
+                self.play_button.draw_button()
+
+        pygame.draw.line(self.screen,(0,0,0),(0,self.settings.middle_y),(self.settings.screen_width,self.settings.middle_y),2)
 
         pygame.display.flip()
 
@@ -286,7 +321,10 @@ class AlienInvasion:
         sys.exit()
 
 
-if __name__ == '__main__':
-    # Make a game instance, and run the game.
+
+def main():
     ai = AlienInvasion()
     ai.run_game()
+
+if __name__ == '__main__':
+    main()
